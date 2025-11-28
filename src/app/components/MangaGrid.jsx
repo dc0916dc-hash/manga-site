@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link'; // <--- 引入 Next.js 的連結功能
 
 const MangaGrid = () => {
   const comics = [
@@ -15,7 +16,8 @@ const MangaGrid = () => {
       </h2>
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
         {comics.map((comic) => (
-          <div key={comic.id} className="group cursor-pointer">
+          // 這裡加上了 Link，點擊後會跳轉到 /comic/漫畫ID
+          <Link key={comic.id} href={`/comic/${comic.id}`} className="group cursor-pointer">
             <div className="relative aspect-[2/3] overflow-hidden rounded-lg shadow-md group-hover:shadow-xl transition-all duration-300">
               <img 
                 src={comic.cover} 
@@ -31,7 +33,7 @@ const MangaGrid = () => {
                 {comic.title}
               </h3>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>
