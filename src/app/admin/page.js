@@ -56,16 +56,39 @@ export default function AdminPage() {
   };
 
   // --- 功能 2: 上傳章節與內頁 (大魔王關卡) ---
+// --- 功能 2: 上傳章節與內頁 (自動排序版) ---
   const handleUploadChapter = async (e) => {
     e.preventDefault();
-    const files = chapterFilesRef.current?.files;
+    
+    // 1. 先把 FileList 轉成真正的 Array，這樣才能排序
+    let files = Array.from(chapterFilesRef.current?.files || []);
     
     if (!selectedComicId) return alert("請選擇一本漫畫！");
-    if (!files || files.length === 0) return alert("請選擇漫畫圖片！");
+    if (files.length === 0) return alert("請選擇漫畫圖片！");
+
+    // 🌟 關鍵修改：在上傳前進行「自然排序」
+    // 這會讓 1.jpg, 2.jpg, 10.jpg 依照人類直覺排序，而不是 1, 10, 2
+    // 🌟 修改這裡：更強力的「抓數字」排序法
+    files.sort((a, b) => {
+      // 找出檔名裡的第一組數字 (例如 "Page 10.jpg" 就抓出 10)
+      const numA = parseInt(a.name.match(/\d+/)?.[0] || 0);
+      const numB = parseInt(b.name.match(/\d+/)?.[0] || 0);
+      
+      // 如果兩個都抓不到數字 (例如 cover.jpg vs end.jpg)，就照原本的文字排序
+      if (numA === 0 && numB === 0) {
+        return a.name.localeCompare(b.name);
+      }
+      
+      // 數字小的排前面
+      return numA - numB;
+    });
+
+    // 為了保險起見，我們在控制台印出來檢查一下 (這是給你看的)
+    console.log("排序後的順序:", files.map(f => f.name));
 
     setLoading(true);
     try {
-      // 1. 先建立「章節」
+      // 2. 建立「章節」
       const { data: chapterData, error: chapterError } = await supabase
         .from('chapters')
         .insert([{ 
@@ -73,14 +96,13 @@ export default function AdminPage() {
           title: chapterTitle, 
           chapter_number: chapterNumber 
         }])
-        .select() // 為了拿回剛建立的 ID
+        .select()
         .single();
 
       if (chapterError) throw chapterError;
       const chapterId = chapterData.id;
 
-      // 2. 迴圈上傳每一張圖片 (這是最花時間的地方)
-      // 我們用 Array.from 把 FileList 轉成陣列來跑迴圈
+      // 3. 依照排好的順序上傳
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
@@ -88,7 +110,7 @@ export default function AdminPage() {
         const res = await fetch(`/api/upload?filename=${file.name}`, { method: 'POST', body: file });
         const { url } = await res.json();
 
-        // B. 寫入 Pages 資料庫 (記得把 page_number 設為 i + 1)
+        // B. 寫入 Pages 資料庫 (因為 files 已經排好序了，這裡的 i 就是正確頁碼)
         await supabase.from('pages').insert([{
           chapter_id: chapterId,
           image_url: url,
@@ -96,7 +118,7 @@ export default function AdminPage() {
         }]);
       }
 
-      alert(`🎉 成功上傳 ${files.length} 頁！`);
+      alert(`🎉 成功上傳 ${files.length} 頁！(已自動排序)`);
       setChapterTitle(''); setChapterNumber(''); chapterFilesRef.current.value = '';
 
     } catch (err) {
